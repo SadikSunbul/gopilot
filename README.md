@@ -2,6 +2,7 @@
 <p align="center">
   <img src="gopilot.jpeg" alt="Gopilot Logo" width="200"/>
 </p>
+
 [![Development Status](https://img.shields.io/badge/Status-In%20Development-yellow)]()
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.23-blue)]()
 
