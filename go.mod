@@ -1,4 +1,4 @@
-module github.com/SadikSunbul/Gopilot
+module github.com/nolva/gopilot
 
 go 1.23.1
 
