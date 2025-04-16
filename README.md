@@ -23,6 +23,12 @@ Imagine an application with a complex settings menu. Instead of navigating multi
 - **Parameter Automation**: Populates required parameters without user intervention.
 - **Versatile Integration**: Integrates with existing systems, APIs, or custom agents for diverse applications.
 
+## Installation
+
+```cli
+  go get github.com/SadikSunbul/gopilot
+```
+
 ## Example Usage
 
 Below is an example of how to use GoPilot to register and execute a function, such as fetching weather information for a city:
