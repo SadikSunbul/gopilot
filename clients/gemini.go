@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/generative-ai-go/genai"
@@ -11,6 +12,11 @@ import (
 type GeminiClient struct {
 	client *genai.Client
 	model  *genai.GenerativeModel
+}
+
+type GeminiResponse struct {
+	Agent      string                 `json:"agent"`
+	Parameters map[string]interface{} `json:"parameters"`
 }
 
 func NewGeminiClient(apiKey string, genaiModel string) (*GeminiClient, error) {
@@ -71,24 +77,33 @@ Provide your response ONLY in the following JSON format, without any additional 
 	}, nil
 }
 
-func (g *GeminiClient) Generate(prompt string) (string, error) {
+func (g *GeminiClient) Generate(prompt string) (*GeminiResponse, error) {
 	ctx := context.Background()
 
 	resp, err := g.model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(resp.Candidates) == 0 {
-		return "", errors.New("response not generated")
+		return nil, errors.New("response not generated")
 	}
 
-	return string(resp.Candidates[0].Content.Parts[0].(genai.Text)), nil
+	response := string(resp.Candidates[0].Content.Parts[0].(genai.Text))
+
+	var result GeminiResponse
+	err = json.Unmarshal([]byte(response), &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
-func (g *GeminiClient) Stream(prompt string) (<-chan string, error) {
+// This should be tested
+func (g *GeminiClient) Stream(prompt string) (<-chan *GeminiResponse, error) {
 	ctx := context.Background()
-	outputChan := make(chan string)
+	outputChan := make(chan *GeminiResponse)
 
 	stream := g.model.GenerateContentStream(ctx, genai.Text(prompt))
 
@@ -101,7 +116,10 @@ func (g *GeminiClient) Stream(prompt string) (<-chan string, error) {
 			}
 			if len(resp.Candidates) > 0 {
 				text := string(resp.Candidates[0].Content.Parts[0].(genai.Text))
-				outputChan <- text
+				outputChan <- &GeminiResponse{
+					Agent:      text,
+					Parameters: map[string]interface{}{},
+				}
 			}
 		}
 	}()

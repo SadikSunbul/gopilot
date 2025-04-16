@@ -1,4 +1,4 @@
-package interfaces
+package gopilot
 
 // LLMProvider defines the basic interface that any LLM provider must implement
 type LLMProvider interface {
