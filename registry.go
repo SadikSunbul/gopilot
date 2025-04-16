@@ -19,7 +19,7 @@ func NewRegistry() *Registry {
 }
 
 // Register, new function
-func (r *Registry) Register(fn *Function) error {
+func (r *Registry) register(fn *Function) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -40,7 +40,7 @@ func (r *Registry) Register(fn *Function) error {
 }
 
 // Get, name function
-func (r *Registry) Get(name string) (*Function, error) {
+func (r *Registry) get(name string) (*Function, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -53,7 +53,7 @@ func (r *Registry) Get(name string) (*Function, error) {
 }
 
 // List, all functions
-func (r *Registry) List() []*Function {
+func (r *Registry) list() []*Function {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -65,8 +65,8 @@ func (r *Registry) List() []*Function {
 }
 
 // Execute, function
-func (r *Registry) Execute(name string, params map[string]interface{}) (interface{}, error) {
-	fn, err := r.Get(name)
+func (r *Registry) execute(name string, params map[string]interface{}) (interface{}, error) {
+	fn, err := r.get(name)
 	if err != nil {
 		return nil, err
 	}

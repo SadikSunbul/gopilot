@@ -21,18 +21,22 @@ func main() {
 	}
 	defer client.Close()
 
-	// Create function record
-	registry := gopilot.NewRegistry()
+	gp, err := gopilot.NewGopilot(client)
+	if err != nil {
+		log.Fatal("gopilot is not run:", err.Error())
+	}
 
-	if err := registry.Register(NewWeatherFunction()); err != nil {
+	if err := gp.FunctionRegister(NewWeatherFunction()); err != nil {
 		log.Fatal(err)
 	}
-	if err := registry.Register(NewTranslateFunction()); err != nil {
+	if err := gp.FunctionRegister(NewTranslateFunction()); err != nil {
 		log.Fatal(err)
 	}
-	if err := registry.Register(NewCalculatorFunction()); err != nil {
+	if err := gp.FunctionRegister(NewCalculatorFunction()); err != nil {
 		log.Fatal(err)
 	}
+
+	gp.SetSystemPrompt()
 
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Welcome! Type 'exit' to exit.")
@@ -50,7 +54,7 @@ func main() {
 			break
 		}
 
-		response, err := client.Generate(input)
+		response, err := gp.Generate(input)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -59,7 +63,7 @@ func main() {
 		fmt.Printf("Parameters: %+v\n\n", response.Parameters)
 
 		// Execute the function
-		result, err := registry.Execute(response.Agent, response.Parameters)
+		result, err := gp.FunctionExecute(response.Agent, response.Parameters)
 		if err != nil {
 			log.Fatal(err)
 		}
