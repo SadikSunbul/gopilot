@@ -6,91 +6,156 @@
 [![Development Status](https://img.shields.io/badge/Status-In%20Development-yellow)]()
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.23-blue)]()
 
-> ⚠️ **Note**: This project is still under development and currently only supports Gemini LLM.
+> ⚠️ **Note**: This project is under active development and currently supports only the Gemini LLM.
 
-## 📖 Overview
+## What is GoPilot?
 
-Gopilot is a powerful Go library that transforms natural language commands into programmatic actions. Using LLM (Large Language Model) technology, it provides an intelligent interface that can match text-based user inputs with predefined APIs, functions, and agents for execution.
+GoPilot is an intelligent automation platform that enables users to perform complex tasks across systems, APIs, or agents using simple natural language inputs. Powered by advanced language models, GoPilot interprets user commands, selects the appropriate functions or agents, configures parameters, and executes tasks seamlessly—saving time and effort.
 
-## 🌟 Features
+## How It Works
 
-- **Natural Language Processing**: Understanding and processing user commands in natural language
-- **Intelligent Action Matching**: Converting text inputs into appropriate API/function calls
-- **Context Awareness**: Remembering previous actions and making contextual decisions
-- **Interactive Verification**: User confirmation for critical actions
-- **Configurable Workflow**: Customizable action flows and parameters
+Imagine an application with a complex settings menu. Instead of navigating multiple layers to adjust a setting, a user can simply say, "Set the app's font size to 15." If a GoPilot module is configured for this task, it analyzes the input, identifies the relevant agent or API, sets the necessary parameters, and executes the command as if the user had manually made the change. The result is a streamlined, intuitive experience that feels like having a personal assistant.
 
-## 🛠️ Technical Details
+## Key Features
 
-### Architecture
+- **Natural Language Processing**: Understands and processes conversational or imperfect user inputs.
+- **Agent Selection**: Automatically selects the most suitable function, API, or agent for the task.
+- **Parameter Automation**: Populates required parameters without user intervention.
+- **Versatile Integration**: Integrates with existing systems, APIs, or custom agents for diverse applications.
 
-- **LLM Integration**: Currently supports Gemini LLM
-- **Agent System**: Modular structure with customizable agents
-- **Context Management**: Memory system tracking historical actions and states
+## Example Usage
 
-### Use Cases
+Below is an example of how to use GoPilot to register and execute a function, such as fetching weather information for a city:
 
 ```go
-// Agent definition example
-agent := gopilot.NewAgent(config)
+package main
 
-// Natural language command processing
-response, err := agent.Process("enable developer mode")
+import (
+    "errors"
+    "log"
+    "github.com/SadikSunbul/gopilot"
+    "github.com/SadikSunbul/gopilot/clients"
+)
 
-// Contextual command processing
-response, err := agent.Process("undo last action")
+func main() {
+    // Initialize Gemini client
+    client, err := clients.NewGeminiClient(apiKey, "gemini-2.0-flash")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.Close()
+
+    // Initialize GoPilot
+    gp, err := gopilot.NewGopilot(client)
+    if err != nil {
+        log.Fatal("gopilot is not run:", err.Error())
+    }
+
+    // Register a weather agent
+    if err := gp.FunctionRegister(
+        func() *gopilot.Function {
+            return &gopilot.Function{
+                Name:        "weather-agent",
+                Description: "Gets weather information for a specified city",
+                Parameters: map[string]gopilot.ParameterSchema{
+                    "city": {
+                        Type:        "string",
+                        Description: "The name of the city to get weather information for",
+                        Required:    true,
+                    },
+                },
+                Execute: func(params map[string]interface{}) (interface{}, error) {
+                    city, ok := params["city"].(string)
+                    if !ok {
+                        return nil, errors.New("city parameter must be a string")
+                    }
+                    // Placeholder for real weather API integration
+                    return map[string]interface{}{
+                        "city":      city,
+                        "temp":      25,
+                        "condition": "sunny",
+                    }, nil
+                },
+            }
+        }()); err != nil {
+        log.Fatal(err)
+    }
+
+    // Set system prompt (not optional)
+    gp.SetSystemPrompt()
+
+    // Generate and execute a command
+    input := "Get the weather for Istanbul"
+    response, err := gp.Generate(input)
+    if err != nil {
+        log.Fatal(err)
+    }
+    result, err := gp.FunctionExecute(response.Agent, response.Parameters)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Alternatively, use the combined method
+    // result, err := gp.GenerateAndExecute(input)
+}
 ```
 
-## 💡 Example Usage
+## Installation
 
-Gopilot allows you to perform complex application functions with simple text commands:
+1. Ensure you have Go `>=1.23` installed.
+2. Clone the repository:
 
-1. **Setting Changes**:
-   ```text
-   "enable developer mode" -> DevMode.Enable()
-   "increase debug level" -> Logger.SetLevel(DEBUG)
+   ```bash
+   git clone https://github.com/SadikSunbul/gopilot.git
+   ```
+3. Install dependencies:
+
+   ```bash
+   cd gopilot
+   go mod tidy
+   ```
+4. Set up your Gemini API key as an environment variable:
+
+   ```bash
+   export GEMINI_API_KEY=your-api-key
    ```
 
-2. **Contextual Operations**:
-   ```text
-   "undo last action" -> [Automatically applies reverse of previous action]
-   "save recent changes" -> [Selects appropriate save operation based on context]
-   ```
+## Usage
 
-## 🔧 Installation
+1. Import the GoPilot package into your Go project.
+2. Initialize a client for your chosen LLM (currently only Gemini is supported).
+3. Create and register functions or agents with defined parameters and execution logic.
+4. Use `Generate` and `FunctionExecute` or the combined `GenerateAndExecute` to process user inputs.
 
-```bash
-go get github.com/user/gopilot
-```
+## Contributing
 
-## 📚 Documentation
+We welcome contributions to GoPilot! To get started:
 
-Visit our [Wiki](link) page for detailed documentation.
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/your-feature`).
+3. Make your changes and commit (`git commit -m "Add your feature"`).
+4. Push to your branch (`git push origin feature/your-feature`).
+5. Open a Pull Request.
 
-## 🤝 Contributing
+Please read our CONTRIBUTING.md for more details.
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## Roadmap
 
-## 📝 License
+- Support for additional LLMs (e.g., OpenAI, Anthropic).
+- Enhanced error handling and logging.
+- Pre-built agents for common tasks (e.g., file management, notifications).
+- Web-based interface for easier interaction.
+- Comprehensive test suite.
 
-This project is licensed under [LICENSE_TYPE]. See `LICENSE` file for details.
+## License
 
-## 🔮 Future Features
+This project is licensed under the MIT License. See LICENSE for details.
 
-- [ ] Additional LLM support (GPT-4, Claude etc.)
-- [ ] Advanced context management
-- [ ] Customizable security policies
-- [ ] Multi-language support
-- [ ] Performance optimizations
+## Contact
 
-## ⚠️ Known Limitations
+For questions, suggestions, or issues, please:
 
-- Currently only supports Gemini LLM
-- Context management is under development
-- API limits depend on LLM provider
+- Open an issue on GitHub.
+- Reach out to the maintainer: [Sadik Sunbul](https://github.com/SadikSunbul)
 
----
+
