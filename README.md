@@ -28,14 +28,6 @@ Imagine an application with a complex settings menu. Instead of navigating multi
 Below is an example of how to use GoPilot to register and execute a function, such as fetching weather information for a city:
 
 ```go
-package main
-
-import (
-    "errors"
-    "log"
-    "github.com/SadikSunbul/gopilot"
-    "github.com/SadikSunbul/gopilot/clients"
-)
 
 func main() {
     // Initialize Gemini client
