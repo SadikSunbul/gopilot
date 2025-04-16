@@ -2,6 +2,9 @@ package gopilot
 
 import (
 	"errors"
+	"fmt"
+	"log"
+
 	"github.com/SadikSunbul/Gopilot/clients"
 )
 
@@ -19,16 +22,7 @@ IMPORTANT RULES:
 3. For general questions or discussions in any language, use the appropriate agent based on the intent, not the language
 
 Available agents and their parameters:
-1. weather-agent:
-   - city: string (city name)
-
-2. translate-agent:
-   - text: string (text to translate)
-   - from: string (source language code, e.g., "tr", "en")
-   - to: string (target language code)
-
-3. calculator-agent:
-   - expression: string (mathematical expression)
+%s
 
 If the user's request doesn't match any of these agents, use the "unsupported" agent in your response.
 
@@ -68,10 +62,51 @@ func (g *Gopilot) FunctionsList() []*Function {
 }
 
 func (g *Gopilot) SetSystemPrompt() {
+	err := g.FunctionRegister(unsupportedFunction())
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	agentlist := g.registry.list()
+
+	agentparameter := ""
+
+	for index, value := range agentlist {
+		agentparameter += fmt.Sprintf("%d. %s (%s):\n", index, value.Name, value.Description)
+		if len(value.Parameters) > 0 {
+			for name, p := range value.Parameters {
+				parmeter := fmt.Sprintf("%s: %s (%s)", name, p.Type, p.Description)
+				agentparameter += fmt.Sprintf("\t - %s \n", parmeter)
+			}
+		}
+
+	}
+
 	// Create command here will be added more
-	g.llm.SetSystemPrompt(systemPrompt)
+	g.llm.SetSystemPrompt(fmt.Sprintf(systemPrompt, agentparameter))
+	fmt.Printf(fmt.Sprintf(systemPrompt, agentparameter))
 }
 
 func (g *Gopilot) Generate(input string) (*clients.LLMResponse, error) {
 	return g.llm.Generate(input)
+}
+
+func (g *Gopilot) GenerateAndExecute(input string) (interface{}, error) {
+	response, err := g.Generate(input)
+	if err != nil {
+		return nil, err
+	}
+	return g.FunctionExecute(response.Agent, response.Parameters)
+}
+
+func unsupportedFunction() *Function {
+	return &Function{
+		Name:        "unsupported",
+		Description: "If the user's request doesn't match any of these agents, use the \"unsupported\" agent in your response.",
+		Parameters:  map[string]ParameterSchema{},
+		Execute: func(params map[string]interface{}) (interface{}, error) {
+			return map[string]interface{}{
+				"message": "you made an unsupported request",
+			}, nil
+		},
+	}
 }
