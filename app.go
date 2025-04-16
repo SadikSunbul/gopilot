@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/SadikSunbul/gopilot/clients"
+	"github.com/nolva/gopilot/clients"
 )
 
 type Gopilot struct {
