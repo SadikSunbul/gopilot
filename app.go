@@ -64,8 +64,19 @@ func (g *Gopilot) SetSystemPrompt(importantRules []string, unsupportedFunction *
 		agentparameter += fmt.Sprintf("%d. %s (%s):\n", index, value.Name, value.Description)
 		if len(value.Parameters) > 0 {
 			for name, p := range value.Parameters {
-				parmeter := fmt.Sprintf("%s: %s (%s)", name, p.Type, p.Description)
-				agentparameter += fmt.Sprintf("\t - %s \n", parmeter)
+				if p.Type == "interface" {
+					parmeter := fmt.Sprintf("%s: %s (%s) { \n", name, p.Type, p.Description)
+					if len(p.Properties) > 0 {
+						for pname, pr := range p.Properties {
+							parmeter += fmt.Sprintf("\t\t * %s: %s (%s) \n", pname, pr.Type, pr.Description)
+						}
+					}
+					agentparameter += fmt.Sprintf("\t - %s \t\t}\n", parmeter)
+
+				} else {
+					parmeter := fmt.Sprintf("%s: %s (%s)", name, p.Type, p.Description)
+					agentparameter += fmt.Sprintf("\t - %s \n", parmeter)
+				}
 			}
 		}
 
