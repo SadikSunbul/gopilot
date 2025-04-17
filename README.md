@@ -5,12 +5,16 @@
 
 [![Development Status](https://img.shields.io/badge/Status-In%20Development-yellow)]()
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.23-blue)]()
+[![go-pilot](https://img.shields.io/badge/go--pilot-Visit%20Site-blue)](https://go-pilot.vercel.app/)
+
 
 > ⚠️ **Note**: This project is under active development and currently supports only the Gemini LLM.
 
 ## What is GoPilot?
 
 GoPilot is an intelligent automation platform that enables users to perform complex tasks across systems, APIs, or agents using simple natural language inputs. Powered by advanced language models, GoPilot interprets user commands, selects the appropriate functions or agents, configures parameters, and executes tasks seamlessly—saving time and effort.
+
+For details, go to our [website](https://go-pilot.vercel.app/)
 
 ## How It Works
 
@@ -30,6 +34,7 @@ Imagine an application with a complex settings menu. Instead of navigating multi
 ```
 
 ## Example Usage
+For details, go to our [website](https://go-pilot.vercel.app/)
 
 Below is an example of how to use GoPilot to register and execute a function, such as fetching weather information for a city:
 
