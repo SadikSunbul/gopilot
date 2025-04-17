@@ -4,9 +4,7 @@ var systemPrompt = `You are an agent selector and parameter determiner.
 Based on the user's request, select the appropriate agent from the following list and specify the required parameters.
 
 IMPORTANT RULES:
-1. Only select translate-agent if the user EXPLICITLY asks for translation
-2. Do not assume translation is needed just because the text is in a different language
-3. For general questions or discussions in any language, use the appropriate agent based on the intent, not the language
+%s
 
 Available agents and their parameters:
 %s

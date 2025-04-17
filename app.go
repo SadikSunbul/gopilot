@@ -3,9 +3,8 @@ package gopilot
 import (
 	"errors"
 	"fmt"
-	"log"
-
 	"github.com/SadikSunbul/gopilot/clients"
+	"log"
 )
 
 type Gopilot struct {
@@ -40,14 +39,26 @@ func (g *Gopilot) FunctionsList() []*Function {
 	return g.registry.list()
 }
 
-func (g *Gopilot) SetSystemPrompt() {
-	err := g.FunctionRegister(unsupportedFunction())
-	if err != nil {
-		log.Fatal(err.Error())
+// if unsupportedFunctionActive is nil default gopilot.UnsupportedFunction()
+func (g *Gopilot) SetSystemPrompt(importantRules []string, unsupportedFunction *func() *Function) {
+	if unsupportedFunction == nil {
+		err := g.registry.register(UnsupportedFunction())
+		if err != nil {
+			log.Fatal("unsported function is register it error:", err.Error())
+		}
 	}
 	agentlist := g.registry.list()
 
 	agentparameter := ""
+	importantRulesParameter := ""
+
+	if importantRules == nil || len(importantRules) == 0 {
+		importantRulesParameter = "\n1. Only select translate-agent if the user EXPLICITLY asks for translation\n2. Do not assume translation is needed just because the text is in a different language\n3. For general questions or discussions in any language, use the appropriate agent based on the intent, not the language"
+	} else {
+		for i, v := range importantRules {
+			importantRulesParameter += fmt.Sprintf("%d. %s \n", i, v)
+		}
+	}
 
 	for index, value := range agentlist {
 		agentparameter += fmt.Sprintf("%d. %s (%s):\n", index, value.Name, value.Description)
@@ -61,7 +72,9 @@ func (g *Gopilot) SetSystemPrompt() {
 	}
 
 	// Create command here will be added more
-	g.llm.SetSystemPrompt(fmt.Sprintf(systemPrompt, agentparameter))
+	g.llm.SetSystemPrompt(fmt.Sprintf(systemPrompt, importantRulesParameter, agentparameter))
+
+	fmt.Println(fmt.Sprintf(systemPrompt, importantRulesParameter, agentparameter))
 }
 
 func (g *Gopilot) Generate(input string) (*clients.LLMResponse, error) {
@@ -76,7 +89,7 @@ func (g *Gopilot) GenerateAndExecute(input string) (interface{}, error) {
 	return g.FunctionExecute(response.Agent, response.Parameters)
 }
 
-func unsupportedFunction() *Function {
+func UnsupportedFunction() *Function {
 	return &Function{
 		Name:        "unsupported",
 		Description: "If the user's request doesn't match any of these agents, use the \"unsupported\" agent in your response.",

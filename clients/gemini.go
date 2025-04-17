@@ -15,12 +15,11 @@ type GeminiClient struct {
 	systemPrompt string
 }
 
-func NewGeminiClient(apiKey string, genaiModel string) (*GeminiClient, error) {
+func NewGeminiClient(ctx context.Context, apiKey string, genaiModel string) (*GeminiClient, error) {
 	if apiKey == "" {
 		return nil, errors.New("API key required")
 	}
 
-	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, err
