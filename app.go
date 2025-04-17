@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/SadikSunbul/gopilot/clients"
 	"log"
+	"strings"
 )
 
 type Gopilot struct {
@@ -39,53 +40,62 @@ func (g *Gopilot) FunctionsList() []*Function {
 	return g.registry.list()
 }
 
-// if unsupportedFunctionActive is nil default gopilot.UnsupportedFunction()
+// recursively formats the parameter schema, along with the required information
+func formatParameterSchema(name string, param ParameterSchema, indentLevel int) string {
+	indent := strings.Repeat("\t", indentLevel)
+	requiredMark := ""
+	if param.Required {
+		requiredMark = " [required]"
+	}
+	paramStr := fmt.Sprintf("%s%s: %s%s (%s)", indent, name, param.Type, requiredMark, param.Description)
+
+	if param.Type == "interface" && len(param.Properties) > 0 {
+		paramStr += " {\n"
+		for propName, prop := range param.Properties {
+			paramStr += formatParameterSchema(propName, prop, indentLevel+1)
+		}
+		paramStr += fmt.Sprintf("%s}\n", indent)
+	} else {
+		paramStr += "\n"
+	}
+	return paramStr
+}
+
 func (g *Gopilot) SetSystemPrompt(importantRules []string, unsupportedFunction *func() *Function) {
 	if unsupportedFunction == nil {
 		err := g.registry.register(UnsupportedFunction())
 		if err != nil {
-			log.Fatal("unsported function is register it error:", err.Error())
+			log.Fatal("unsupported function register error:", err.Error())
 		}
 	}
-	agentlist := g.registry.list()
+	agentList := g.registry.list()
 
-	agentparameter := ""
+	agentParameter := ""
 	importantRulesParameter := ""
 
 	if importantRules == nil || len(importantRules) == 0 {
-		importantRulesParameter = "\n1. Only select translate-agent if the user EXPLICITLY asks for translation\n2. Do not assume translation is needed just because the text is in a different language\n3. For general questions or discussions in any language, use the appropriate agent based on the intent, not the language"
+		importantRulesParameter = `
+1. Only select the *translate-agent* if the user **explicitly** asks for translation.
+2. Do not assume translation is needed just because the text is in a different language.
+3. For general questions or discussions in any language, choose the appropriate agent based on the *intent*, not the language.
+`
 	} else {
 		for i, v := range importantRules {
 			importantRulesParameter += fmt.Sprintf("%d. %s \n", i, v)
 		}
 	}
 
-	for index, value := range agentlist {
-		agentparameter += fmt.Sprintf("%d. %s (%s):\n", index, value.Name, value.Description)
+	for index, value := range agentList {
+		agentParameter += fmt.Sprintf("%d. %s (%s):\n", index, value.Name, value.Description)
 		if len(value.Parameters) > 0 {
 			for name, p := range value.Parameters {
-				if p.Type == "interface" {
-					parmeter := fmt.Sprintf("%s: %s (%s) { \n", name, p.Type, p.Description)
-					if len(p.Properties) > 0 {
-						for pname, pr := range p.Properties {
-							parmeter += fmt.Sprintf("\t\t * %s: %s (%s) \n", pname, pr.Type, pr.Description)
-						}
-					}
-					agentparameter += fmt.Sprintf("\t - %s \t\t}\n", parmeter)
-
-				} else {
-					parmeter := fmt.Sprintf("%s: %s (%s)", name, p.Type, p.Description)
-					agentparameter += fmt.Sprintf("\t - %s \n", parmeter)
-				}
+				agentParameter += fmt.Sprintf("\t- %s", formatParameterSchema(name, p, 2))
 			}
 		}
-
 	}
 
-	// Create command here will be added more
-	g.llm.SetSystemPrompt(fmt.Sprintf(systemPrompt, importantRulesParameter, agentparameter))
-
-	fmt.Println(fmt.Sprintf(systemPrompt, importantRulesParameter, agentparameter))
+	g.llm.SetSystemPrompt(fmt.Sprintf(systemPrompt, importantRulesParameter, agentParameter))
+	fmt.Println(fmt.Sprintf(systemPrompt, importantRulesParameter, agentParameter))
 }
 
 func (g *Gopilot) Generate(input string) (*clients.LLMResponse, error) {
@@ -104,7 +114,13 @@ func UnsupportedFunction() *Function {
 	return &Function{
 		Name:        "unsupported",
 		Description: "If the user's request doesn't match any of these agents, use the \"unsupported\" agent in your response.",
-		Parameters:  map[string]ParameterSchema{},
+		Parameters: map[string]ParameterSchema{
+			"message": {
+				Type:        "string",
+				Description: "Contains a simple explanation of the error.",
+				Required:    true,
+			},
+		},
 		Execute: func(params map[string]interface{}) (interface{}, error) {
 			return map[string]interface{}{
 				"message": "you made an unsupported request",
