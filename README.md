@@ -1,3 +1,4 @@
+# GoPilot: AI-Powered Function Router for Go
 
 <p align="center">
   <img src="gopilot.jpeg" alt="Gopilot Logo" width="200"/>
@@ -6,159 +7,239 @@
 [![Development Status](https://img.shields.io/badge/Status-In%20Development-yellow)]()
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.23-blue)]()
 [![go-pilot](https://img.shields.io/badge/go--pilot-Visit%20Site-blue)](https://go-pilot.vercel.app/)
-
+[![go-pilot](https://img.shields.io/badge/go--pilot-pkg%20go%20dev-blue)](https://pkg.go.dev/github.com/SadikSunbul/gopilot#FunctionWrapper)
 
 > ⚠️ **Note**: This project is under active development and currently supports only the Gemini LLM.
 
-## What is GoPilot?
+## Overview
 
-GoPilot is an intelligent automation platform that enables users to perform complex tasks across systems, APIs, or agents using simple natural language inputs. Powered by advanced language models, GoPilot interprets user commands, selects the appropriate functions or agents, configures parameters, and executes tasks seamlessly—saving time and effort.
+GoPilot is an intelligent automation platform that enables natural language interaction with your Go functions. It automatically routes user queries to the appropriate functions, handles parameter mapping, and manages execution flow - all through simple conversational inputs.
 
-For details, go to our [website](https://go-pilot.vercel.app/)
+### Key Features
 
-## How It Works
-
-Imagine an application with a complex settings menu. Instead of navigating multiple layers to adjust a setting, a user can simply say, "Set the app's font size to 15." If a GoPilot module is configured for this task, it analyzes the input, identifies the relevant agent or API, sets the necessary parameters, and executes the command as if the user had manually made the change. The result is a streamlined, intuitive experience that feels like having a personal assistant.
-
-## Key Features
-
-- **Natural Language Processing**: Understands and processes conversational or imperfect user inputs.
-- **Agent Selection**: Automatically selects the most suitable function, API, or agent for the task.
-- **Parameter Automation**: Populates required parameters without user intervention.
-- **Versatile Integration**: Integrates with existing systems, APIs, or custom agents for diverse applications.
+- 🤖 **Natural Language Processing**: Process user queries in natural language
+- 🎯 **Automatic Function Routing**: Map queries to the most appropriate function
+- 🔄 **Type-Safe Parameter Mapping**: Convert dynamic inputs to strongly-typed parameters
+- 🛡️ **Validation Built-in**: Automatic validation of required parameters
+- 🔌 **Easy Integration**: Simple API for registering and executing functions
+- 🎨 **Flexible Response Handling**: Support for various response types and formats
 
 ## Installation
 
-```cli
-  go get github.com/SadikSunbul/gopilot
+```bash
+go get github.com/SadikSunbul/gopilot
 ```
 
-## Example Usage
-For details, go to our [website](https://go-pilot.vercel.app/)
+## Quick Start
 
-Below is an example of how to use GoPilot to register and execute a function, such as fetching weather information for a city:
+Here's a simple example that demonstrates how to use GoPilot:
 
 ```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "github.com/SadikSunbul/gopilot"
+    "github.com/SadikSunbul/gopilot/clients"
+    "github.com/SadikSunbul/gopilot/pkg/generator"
+)
+
+// Define your function parameters
+type WeatherParams struct {
+    City string `json:"city" description:"The name of the city to get weather information for" required:"true"`
+}
+
+// Define your function response
+type WeatherResponse struct {
+    City      string `json:"city"`
+    Temp      int    `json:"temp"`
+    Condition string `json:"condition"`
+}
+
+// Implement your function logic
+func GetWeather(params WeatherParams) (WeatherResponse, error) {
+    if params.City == "" {
+        return WeatherResponse{}, fmt.Errorf("city cannot be empty")
+    }
+    
+    // Your weather API integration here
+    return WeatherResponse{
+        City:      params.City,
+        Temp:      25,
+        Condition: "sunny",
+    }, nil
+}
 
 func main() {
     // Initialize Gemini client
-    client, err := clients.NewGeminiClient(apiKey, "gemini-2.0-flash")
+    client, err := clients.NewGeminiClient(context.Background(), "your-api-key", "gemini-2.0-flash")
     if err != nil {
         log.Fatal(err)
     }
     defer client.Close()
 
-    // Initialize GoPilot
+    // Create GoPilot instance
     gp, err := gopilot.NewGopilot(client)
     if err != nil {
-        log.Fatal("gopilot is not run:", err.Error())
+        log.Fatal("failed to initialize gopilot:", err)
     }
 
-    // Register a weather agent
-    if err := gp.FunctionRegister(
-        func() *gopilot.Function {
-            return &gopilot.Function{
-                Name:        "weather-agent",
-                Description: "Gets weather information for a specified city",
-                Parameters: map[string]gopilot.ParameterSchema{
-                    "city": {
-                        Type:        "string",
-                        Description: "The name of the city to get weather information for",
-                        Required:    true,
-                    },
-                },
-                Execute: func(params map[string]interface{}) (interface{}, error) {
-                    city, ok := params["city"].(string)
-                    if !ok {
-                        return nil, errors.New("city parameter must be a string")
-                    }
-                    // Placeholder for real weather API integration
-                    return map[string]interface{}{
-                        "city":      city,
-                        "temp":      25,
-                        "condition": "sunny",
-                    }, nil
-                },
-            }
-        }()); err != nil {
+    // Register your function
+    weatherFn := &gopilot.Function[WeatherParams, WeatherResponse]{
+        Name:        "weather-agent",
+        Description: "Gets weather information for a specified city",
+        Parameters:  generator.GenerateParameterSchema(WeatherParams{}),
+        Execute:     GetWeather,
+    }
+    
+    if err := gp.FunctionRegister(weatherFn); err != nil {
         log.Fatal(err)
     }
 
-    // Set system prompt (not optional)
-    gp.SetSystemPrompt()
+    // Set system prompt (required)
+    gp.SetSystemPrompt(nil)
 
-    // Generate and execute a command
-    input := "Get the weather for Istanbul"
+    // Process user query
+    input := "What's the weather like in Istanbul?"
+    
+    // Option 1: Generate and Execute separately
     response, err := gp.Generate(input)
     if err != nil {
         log.Fatal(err)
     }
+    
     result, err := gp.FunctionExecute(response.Agent, response.Parameters)
     if err != nil {
         log.Fatal(err)
     }
+    
+    fmt.Printf("Result: %+v\n", result)
 
-    // Alternatively, use the combined method
-    // result, err := gp.GenerateAndExecute(input)
+    // Option 2: Generate and Execute in one step
+    result, err = gp.GenerateAndExecute(input)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("Result: %+v\n", result)
 }
 ```
 
-## Installation
+## Advanced Usage
 
-1. Ensure you have Go `>=1.23` installed.
-2. Clone the repository:
+### Complex Parameter Types
 
-   ```bash
-   git clone https://github.com/SadikSunbul/gopilot.git
-   ```
-3. Install dependencies:
+GoPilot supports nested and complex parameter types:
 
-   ```bash
-   cd gopilot
-   go mod tidy
-   ```
-4. Set up your Gemini API key as an environment variable:
+```go
+type TranslateParams struct {
+    Text string `json:"text" description:"The text to translate" required:"true"`
+    Path struct {
+        From    string `json:"from" description:"Source language code" required:"true"`
+        To      string `json:"to" description:"Target language code" required:"true"`
+        Options struct {
+            Style string `json:"style" description:"Translation style"`
+        } `json:"options" description:"Additional options"`
+    } `json:"path" description:"Translation configuration" required:"true"`
+}
 
-   ```bash
-   export GEMINI_API_KEY=your-api-key
-   ```
+type TranslateResponse struct {
+    Original   string `json:"original"`
+    Translated string `json:"translated"`
+    From       string `json:"from"`
+    To         string `json:"to"`
+    Style      string `json:"style,omitempty"`
+}
 
-## Usage
+func Translate(params TranslateParams) (TranslateResponse, error) {
+    // Your translation logic here
+}
 
-1. Import the GoPilot package into your Go project.
-2. Initialize a client for your chosen LLM (currently only Gemini is supported).
-3. Create and register functions or agents with defined parameters and execution logic.
-4. Use `Generate` and `FunctionExecute` or the combined `GenerateAndExecute` to process user inputs.
+// Register the translation function
+translateFn := &gopilot.Function[TranslateParams, TranslateResponse]{
+    Name:        "translate-agent",
+    Description: "Translates text between languages",
+    Parameters:  generator.GenerateParameterSchema(TranslateParams{}),
+    Execute:     Translate,
+}
+```
+
+### Interactive CLI Example
+
+Here's how to create an interactive CLI application:
+
+```go
+reader := bufio.NewReader(os.Stdin)
+fmt.Println("Welcome! Type 'exit' to exit.")
+
+for {
+    fmt.Print("\nQuestion: ")
+    input, err := reader.ReadString('\n')
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    input = strings.TrimSpace(input)
+    if input == "exit" {
+        break
+    }
+
+    result, err := gp.GenerateAndExecute(input)
+    if err != nil {
+        log.Printf("Error: %v\n", err)
+        continue
+    }
+
+    fmt.Printf("Result: %+v\n", result)
+}
+```
+
+## Best Practices
+
+1. **Parameter Validation**
+   - Always validate required parameters
+   - Use descriptive error messages
+   - Add proper documentation using struct tags
+
+2. **Error Handling**
+   - Return specific error types
+   - Handle both function-specific and system errors
+   - Provide context in error messages
+
+3. **Function Registration**
+   - Use descriptive function names
+   - Provide clear function descriptions
+   - Document parameter requirements
+
+4. **Type Safety**
+   - Use strongly-typed parameters and responses
+   - Leverage Go's type system for validation
+   - Avoid interface{} when possible
 
 ## Contributing
 
-We welcome contributions to GoPilot! To get started:
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature/your-feature`).
-3. Make your changes and commit (`git commit -m "Add your feature"`).
-4. Push to your branch (`git push origin feature/your-feature`).
-5. Open a Pull Request.
+## Security
 
-Please read our CONTRIBUTING.md for more details.
-
-## Roadmap
-
-- Support for additional LLMs (e.g., OpenAI, Anthropic).
-- Enhanced error handling and logging.
-- Pre-built agents for common tasks (e.g., file management, notifications).
-- Web-based interface for easier interaction.
-- Comprehensive test suite.
+For security concerns, please review our [Security Policy](SECURITY.md).
 
 ## License
 
-This project is licensed under the MIT License. See LICENSE for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contact
+## Support
 
-For questions, suggestions, or issues, please:
+- 📚 [Documentation](https://go-pilot.vercel.app/)
+- 🐛 [Issue Tracker](https://github.com/SadikSunbul/gopilot/issues)
+- 💬 [Discussions](https://github.com/SadikSunbul/gopilot/discussions)
 
-- Open an issue on GitHub.
-- Reach out to the maintainer: [Sadik Sunbul](https://github.com/SadikSunbul)
+## Acknowledgments
+
+- Thanks to all contributors who have helped shape GoPilot
+- Special thanks to the Go community for their support and feedback
 
 

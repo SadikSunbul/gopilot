@@ -1,11 +1,13 @@
 package gopilot
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
-	"github.com/SadikSunbul/gopilot/clients"
 	"log"
 	"strings"
+
+	"github.com/SadikSunbul/gopilot/clients"
+	"github.com/SadikSunbul/gopilot/pkg/generator"
 )
 
 type Gopilot struct {
@@ -15,7 +17,7 @@ type Gopilot struct {
 
 func NewGopilot(llm LLMProvider) (*Gopilot, error) {
 	if llm == nil {
-		return nil, errors.New("llm is required")
+		return nil, fmt.Errorf("llm is required")
 	}
 
 	return &Gopilot{
@@ -24,32 +26,59 @@ func NewGopilot(llm LLMProvider) (*Gopilot, error) {
 	}, nil
 }
 
-func (g *Gopilot) FunctionRegister(fn *Function) error {
-	return g.registry.register(fn)
+// FunctionRegister registers a new function
+func (g *Gopilot) FunctionRegister(fn FunctionWrapper) error {
+	return g.registry.Register(fn)
 }
 
-func (g *Gopilot) FunctionExecute(name string, params map[string]interface{}) (interface{}, error) {
-	return g.registry.execute(name, params)
+// FunctionExecute executes a registered function
+func (g *Gopilot) FunctionExecute(name string, params interface{}) (interface{}, error) {
+	// convert to map[string]interface{} type
+	var paramMap map[string]interface{}
+
+	switch p := params.(type) {
+	case map[string]interface{}:
+		paramMap = p
+	default:
+		// If params are not already map, let's try JSON conversion
+		data, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal params: %w", err)
+		}
+		if err := json.Unmarshal(data, &paramMap); err != nil {
+			return nil, fmt.Errorf("failed to convert params to map: %w", err)
+		}
+	}
+
+	return g.registry.ExecuteFunction(name, paramMap)
 }
 
-func (g *Gopilot) FunctionGet(name string) (*Function, error) {
-	return g.registry.get(name)
+// FunctionGet retrieves a registered function
+func (g *Gopilot) FunctionGet(name string) (FunctionWrapper, error) {
+	return Get[interface{}, interface{}](g.registry, name)
 }
 
-func (g *Gopilot) FunctionsList() []*Function {
-	return g.registry.list()
+// FunctionsList returns all registered functions
+func (g *Gopilot) FunctionsList() []FunctionWrapper {
+	return g.registry.List()
 }
 
-// recursively formats the parameter schema, along with the required information
-func formatParameterSchema(name string, param ParameterSchema, indentLevel int) string {
+// formatParameterSchema formats the parameter schema for system prompt
+func formatParameterSchema(name string, param generator.ParameterSchema, indentLevel int) string {
 	indent := strings.Repeat("\t", indentLevel)
 	requiredMark := ""
 	if param.Required {
 		requiredMark = " [required]"
 	}
-	paramStr := fmt.Sprintf("%s%s: %s%s (%s)", indent, name, param.Type, requiredMark, param.Description)
 
-	if param.Type == "interface" && len(param.Properties) > 0 {
+	description := param.Description
+	if description == "" {
+		description = name
+	}
+
+	paramStr := fmt.Sprintf("%s%s: %s%s (%s)", indent, name, param.Type, requiredMark, description)
+
+	if param.Type == "interface" && param.Properties != nil {
 		paramStr += " {\n"
 		for propName, prop := range param.Properties {
 			paramStr += formatParameterSchema(propName, prop, indentLevel+1)
@@ -58,50 +87,66 @@ func formatParameterSchema(name string, param ParameterSchema, indentLevel int) 
 	} else {
 		paramStr += "\n"
 	}
+
 	return paramStr
 }
 
-func (g *Gopilot) SetSystemPrompt(importantRules []string, unsupportedFunction *func() *Function) {
-	if unsupportedFunction == nil {
-		err := g.registry.register(UnsupportedFunction())
-		if err != nil {
+// SetSystemPrompt configures the system prompt
+func (g *Gopilot) SetSystemPrompt(importantRules []string, unsupportedFunction ...FunctionWrapper) {
+	// Register unsupported function if not already registered
+	if len(unsupportedFunction) > 0 {
+		if err := g.FunctionRegister(unsupportedFunction[0]); err != nil {
 			log.Fatal("unsupported function register error:", err.Error())
 		}
-	}
-	agentList := g.registry.list()
-
-	agentParameter := ""
-	importantRulesParameter := ""
-
-	if importantRules == nil || len(importantRules) == 0 {
-		importantRulesParameter = `
-1. Only select the *translate-agent* if the user **explicitly** asks for translation.
-2. Do not assume translation is needed just because the text is in a different language.
-3. For general questions or discussions in any language, choose the appropriate agent based on the *intent*, not the language.
-`
 	} else {
-		for i, v := range importantRules {
-			importantRulesParameter += fmt.Sprintf("%d. %s \n", i, v)
+		if err := g.FunctionRegister(UnsupportedFunction()); err != nil {
+			log.Fatal("default unsupported function register error:", err.Error())
 		}
 	}
 
-	for index, value := range agentList {
-		agentParameter += fmt.Sprintf("%d. %s (%s):\n", index, value.Name, value.Description)
-		if len(value.Parameters) > 0 {
-			for name, p := range value.Parameters {
-				agentParameter += fmt.Sprintf("\t- %s", formatParameterSchema(name, p, 2))
-			}
+	agentList := g.registry.List()
+
+	// Build function descriptions
+	var functionDescriptions strings.Builder
+	for _, fn := range agentList {
+		functionDescriptions.WriteString(fmt.Sprintf("Function: %s\n", fn.GetName()))
+		functionDescriptions.WriteString(fmt.Sprintf("Description: %s\n", fn.GetDescription()))
+		functionDescriptions.WriteString("Parameters:\n")
+
+		for name, param := range fn.GetParameters() {
+			functionDescriptions.WriteString(formatParameterSchema(name, param, 1))
+		}
+		functionDescriptions.WriteString("\n")
+	}
+
+	// Build rules
+	var rules strings.Builder
+	if importantRules == nil || len(importantRules) == 0 {
+		rules.WriteString(`
+1. Analyze the user's intent carefully before selecting a function
+2. Only select a function if it clearly matches the user's request
+3. Validate all required parameters before execution
+4. If unsure about any parameter, use the "unsupported" function
+5. Consider the context and any previous interactions
+`)
+	} else {
+		for i, rule := range importantRules {
+			rules.WriteString(fmt.Sprintf("%d. %s\n", i+1, rule))
 		}
 	}
 
-	g.llm.SetSystemPrompt(fmt.Sprintf(systemPrompt, importantRulesParameter, agentParameter))
-	fmt.Println(fmt.Sprintf(systemPrompt, importantRulesParameter, agentParameter))
+	// Build final prompt
+	prompt := fmt.Sprintf(systemPrompt, rules.String(), functionDescriptions.String())
+
+	g.llm.SetSystemPrompt(prompt)
 }
 
+// Generate generates a response from the LLM
 func (g *Gopilot) Generate(input string) (*clients.LLMResponse, error) {
 	return g.llm.Generate(input)
 }
 
+// GenerateAndExecute generates a response and executes the corresponding function
 func (g *Gopilot) GenerateAndExecute(input string) (interface{}, error) {
 	response, err := g.Generate(input)
 	if err != nil {
@@ -110,21 +155,27 @@ func (g *Gopilot) GenerateAndExecute(input string) (interface{}, error) {
 	return g.FunctionExecute(response.Agent, response.Parameters)
 }
 
-func UnsupportedFunction() *Function {
-	return &Function{
+// UnsupportedParams represents parameters for unsupported function
+type UnsupportedParams struct {
+	Message string `json:"message" description:"Contains a simple explanation of the error." required:"true"`
+}
+
+// UnsupportedResponse represents the response from unsupported function
+type UnsupportedResponse struct {
+	Message string `json:"message"`
+}
+
+// UnsupportedFunction creates a new unsupported function handler
+func UnsupportedFunction() *Function[UnsupportedParams, UnsupportedResponse] {
+	fn := &Function[UnsupportedParams, UnsupportedResponse]{
 		Name:        "unsupported",
 		Description: "If the user's request doesn't match any of these agents, use the \"unsupported\" agent in your response.",
-		Parameters: map[string]ParameterSchema{
-			"message": {
-				Type:        "string",
-				Description: "Contains a simple explanation of the error.",
-				Required:    true,
-			},
-		},
-		Execute: func(params map[string]interface{}) (interface{}, error) {
-			return map[string]interface{}{
-				"message": "you made an unsupported request",
+		Parameters:  generator.GenerateParameterSchema(UnsupportedParams{}),
+		Execute: func(params UnsupportedParams) (UnsupportedResponse, error) {
+			return UnsupportedResponse{
+				Message: "you made an unsupported request: " + params.Message,
 			}, nil
 		},
 	}
+	return fn
 }
