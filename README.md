@@ -13,7 +13,7 @@
 
 ## Overview
 
-GoPilot is an intelligent automation platform that enables natural language interaction with your Go functions. It automatically routes user queries to the appropriate functions, handles parameter mapping, and manages execution flow - all through simple conversational inputs.
+GoPilot is an intelligent automation library that enables natural language interaction with your Go functions. It automatically routes user queries to appropriate functions, manages parameter mapping, and manages execution flow - all through simple speech inputs.
 
 ### Key Features
 
