@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -108,7 +107,7 @@ func runMockDemo() {
 		`{"agent": "final_answer", "parameters": {"answer": "Based on the weather in Istanbul today (12°C and cloudy with 75% humidity), I recommend dressing in layers. Wear a light jacket or sweater, long pants, and comfortable shoes. Since it's cloudy and humid, you might want to bring a light umbrella just in case of rain."}}`,
 	}
 
-	mockLLM := NewMockLLMClient(mockResponses)
+	mockLLM := gopilot.NewMockLLMClient(mockResponses)
 
 	// Create GoPilot instance with mock
 	gp, err := gopilot.NewGopilot(mockLLM)
@@ -159,45 +158,4 @@ func runMockDemo() {
 		}
 	}
 	fmt.Printf("   Step %d: Provided final answer\n", stepNum)
-}
-
-// MockLLMClient implements LLMProvider for demo purposes
-type MockLLMClient struct {
-	responses []string
-	callCount int
-	systemPrompt string
-}
-
-func NewMockLLMClient(responses []string) *MockLLMClient {
-	return &MockLLMClient{
-		responses: responses,
-		callCount: 0,
-	}
-}
-
-func (m *MockLLMClient) Generate(prompt string) (*clients.LLMResponse, error) {
-	if m.callCount >= len(m.responses) {
-		// Return unsupported if we've exhausted responses
-		return &clients.LLMResponse{
-			Agent: "unsupported",
-			Parameters: map[string]interface{}{
-				"message": "No more responses available",
-			},
-		}, nil
-	}
-	
-	response := m.responses[m.callCount]
-	m.callCount++
-	
-	// Parse the mock response as JSON
-	var result clients.LLMResponse
-	if err := json.Unmarshal([]byte(response), &result); err != nil {
-		return nil, err
-	}
-	
-	return &result, nil
-}
-
-func (m *MockLLMClient) SetSystemPrompt(systemPrompt string) {
-	m.systemPrompt = systemPrompt
 }
