@@ -32,7 +32,7 @@ go get github.com/SadikSunbul/gopilot
 
 ## Quick Start
 
-Here's a simple example that demonstrates how to use GoPilot:
+Here's a simple example that demonstrates how to use GoPilot for **single-step** function calling:
 
 ```go
 package main
@@ -129,6 +129,74 @@ func main() {
 ```
 
 ## Advanced Usage
+
+## Advanced Usage
+
+### Multi-Step Function Calling Agent
+
+GoPilot now supports **multi-step reasoning** where the LLM can chain multiple function calls together to solve complex problems. This is perfect for scenarios where you need to gather information from one function and use it in another.
+
+#### Example: Weather + Clothing Recommendation
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "github.com/SadikSunbul/gopilot"
+    "github.com/SadikSunbul/gopilot/clients"
+)
+
+func main() {
+    // Initialize Gemini client
+    client, err := clients.NewGeminiClient(context.Background(), "your-api-key", "gemini-2.0-flash")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.Close()
+
+    // Create GoPilot instance
+    gp, err := gopilot.NewGopilot(client)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Register multi-step functions
+    weatherFn := gopilot.CreateWeatherFunction()
+    clothingFn := gopilot.CreateClothingFunction()
+    
+    gp.FunctionRegister(weatherFn)
+    gp.FunctionRegister(clothingFn)
+
+    // Create multi-step agent
+    agent := gopilot.NewAgent(gp, 5) // max 5 steps
+
+    // Multi-step execution
+    result, err := agent.ExecuteMultiStep("Based on today's weather, what should I wear in Istanbul?")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Result: %v\n", result)
+}
+```
+
+#### How Multi-Step Works
+
+1. **User Query**: "Based on today's weather, what should I wear in Istanbul?"
+2. **Step 1**: Agent calls `get-weather` function with `{"city": "Istanbul"}`
+3. **Step 2**: Agent calls `suggest-clothes` function with weather data from Step 1
+4. **Final Answer**: Agent provides comprehensive clothing recommendation
+
+#### Agent Features
+
+- **Context Management**: Maintains conversation history and function results
+- **Result Chaining**: Results from previous functions are available to subsequent calls
+- **Safety Limits**: Maximum step count prevents infinite loops
+- **Dynamic Reasoning**: LLM decides when to stop and provide final answer
 
 ### Complex Parameter Types
 
