@@ -1,122 +1,96 @@
 package gopilot
 
 import (
-	"fmt"
+	"context"
 	"sync"
-
-	"github.com/SadikSunbul/gopilot/pkg/generator"
 )
 
-// FunctionWrapper is an interface that all functions must implement
-type FunctionWrapper interface {
-	GetName() string
-	GetDescription() string
-	GetParameters() map[string]generator.ParameterSchema
-	ExecuteWithMap(map[string]interface{}) (interface{}, error)
-}
-
-// Registry represents a thread-safe function registry
+// Registry is a thread-safe function registry.
 type Registry struct {
 	functions map[string]FunctionWrapper
 	mu        sync.RWMutex
 }
 
-// NewRegistry creates a new function registry
+// NewRegistry creates a new function registry.
 func NewRegistry() *Registry {
 	return &Registry{
 		functions: make(map[string]FunctionWrapper),
 	}
 }
 
-// RegisterTyped adds a new typed function to the registry
-func RegisterTyped[T any, R any](r *Registry, fn *Function[T, R]) error {
-	return r.Register(fn)
-}
-
-// Register adds a new function to the registry
+// Register adds a function to the registry.
 func (r *Registry) Register(fn FunctionWrapper) error {
 	if fn == nil {
-		return fmt.Errorf("function cannot be nil")
+		return ErrNilFunction
 	}
 
-	name := fn.GetName()
+	name := fn.Name()
 	if name == "" {
-		return fmt.Errorf("function name cannot be empty")
+		return ErrEmptyFunctionName
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, exists := r.functions[name]; exists {
-		return fmt.Errorf("function %s already registered", name)
+		return ErrFunctionExists
 	}
 
 	r.functions[name] = fn
 	return nil
 }
 
-// Execute runs a registered function with the given parameters
-func Execute[T any, R any](r *Registry, name string, params T) (R, error) {
-	r.mu.RLock()
-	fn, exists := r.functions[name]
-	r.mu.RUnlock()
+// Unregister removes a function from the registry.
+func (r *Registry) Unregister(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	if !exists {
-		var zero R
-		return zero, fmt.Errorf("function %s not found", name)
+	if _, exists := r.functions[name]; !exists {
+		return ErrFunctionNotFound
 	}
 
-	// Debug bilgisi ekle
-	fmt.Printf("Function type: %T\n", fn)
-	fmt.Printf("Params type: %T\n", params)
-
-	typedFn, ok := fn.(*Function[T, R])
-	if !ok {
-		var zero R
-		return zero, fmt.Errorf("function %s has incompatible parameter type (got: %T, want: *Function[%T, %T])", name, fn, *new(T), *new(R))
-	}
-
-	return typedFn.Execute(params)
+	delete(r.functions, name)
+	return nil
 }
 
-// Get retrieves a function from the registry
-func Get[T any, R any](r *Registry, name string) (*Function[T, R], error) {
+// Get retrieves a function from the registry.
+func (r *Registry) Get(name string) (FunctionWrapper, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	fn, exists := r.functions[name]
 	if !exists {
-		return nil, fmt.Errorf("function %s not found", name)
+		return nil, ErrFunctionNotFound
 	}
 
-	typedFn, ok := fn.(*Function[T, R])
-	if !ok {
-		return nil, fmt.Errorf("function %s has incompatible type", name)
-	}
-
-	return typedFn, nil
+	return fn, nil
 }
 
-// Get retrieves a function from the registry
-func (r *Registry) Get(name string) (FunctionWrapper, bool) {
+// Has checks if a function exists in the registry.
+func (r *Registry) Has(name string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	fn, exists := r.functions[name]
-	return fn, exists
+	_, exists := r.functions[name]
+	return exists
 }
 
-// ExecuteFunction executes a registered function with the given parameters
-func (r *Registry) ExecuteFunction(name string, params map[string]interface{}) (interface{}, error) {
-	fn, exists := r.Get(name)
-	if !exists {
-		return nil, fmt.Errorf("function %s not found", name)
+// Execute executes a registered function with the given parameters.
+func (r *Registry) Execute(ctx context.Context, name string, params map[string]any) (any, error) {
+	fn, err := r.Get(name)
+	if err != nil {
+		return nil, err
 	}
 
-	return fn.ExecuteWithMap(params)
+	result, err := fn.Execute(ctx, params)
+	if err != nil {
+		return nil, NewExecutionError(name, err)
+	}
+
+	return result, nil
 }
 
-// List returns all registered functions
+// List returns all registered functions.
 func (r *Registry) List() []FunctionWrapper {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -127,4 +101,68 @@ func (r *Registry) List() []FunctionWrapper {
 	}
 
 	return functions
+}
+
+// Names returns the names of all registered functions.
+func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	names := make([]string, 0, len(r.functions))
+	for name := range r.functions {
+		names = append(names, name)
+	}
+
+	return names
+}
+
+// Count returns the number of registered functions.
+func (r *Registry) Count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return len(r.functions)
+}
+
+// Clear removes all functions from the registry.
+func (r *Registry) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.functions = make(map[string]FunctionWrapper)
+}
+
+// RegisterTyped is a helper function to register a typed function.
+func RegisterTyped[T any, R any](r *Registry, fn *Function[T, R]) error {
+	return r.Register(fn)
+}
+
+// GetTyped retrieves a typed function from the registry.
+func GetTyped[T any, R any](r *Registry, name string) (*Function[T, R], error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	fn, exists := r.functions[name]
+	if !exists {
+		return nil, ErrFunctionNotFound
+	}
+
+	typedFn, ok := fn.(*Function[T, R])
+	if !ok {
+		return nil, NewParameterError(name, "incompatible function type")
+	}
+
+	return typedFn, nil
+}
+
+// ExecuteTyped executes a typed function with typed parameters.
+func ExecuteTyped[T any, R any](r *Registry, ctx context.Context, name string, params T) (R, error) {
+	var zero R
+
+	fn, err := GetTyped[T, R](r, name)
+	if err != nil {
+		return zero, err
+	}
+
+	return fn.ExecuteTyped(ctx, params)
 }

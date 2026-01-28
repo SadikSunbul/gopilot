@@ -5,11 +5,11 @@
 </p>
 
 [![Development Status](https://img.shields.io/badge/Status-In%20Development-yellow)]()
-[![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.23-blue)]()
+[![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.25.4-blue)]()
 [![go-pilot](https://img.shields.io/badge/go--pilot-Visit%20Site-blue)](https://go-pilot.vercel.app/)
 [![go-pilot](https://img.shields.io/badge/go--pilot-pkg%20go%20dev-blue)](https://pkg.go.dev/github.com/SadikSunbul/gopilot#FunctionWrapper)
 
-> ⚠️ **Note**: This project is under active development and currently supports only the Gemini LLM.
+> ⚠️ **Note**: This project is under active development and currently supports only the **Gemini** provider.
 
 ## Overview
 
@@ -27,12 +27,27 @@ GoPilot is an intelligent automation library that enables natural language inter
 ## Installation
 
 ```bash
-go get github.com/SadikSunbul/gopilot
+go get github.com/SadikSunbul/gopilot@latest
 ```
 
 ## Quick Start
 
 Here's a simple example that demonstrates how to use GoPilot:
+
+### Examples
+
+- Offline (no API key required):
+
+```bash
+go run ./examples/offline
+```
+
+- Interactive CLI (requires `GEMINI_API_KEY`):
+
+```bash
+export GEMINI_API_KEY="..."
+go run ./examples/cli
+```
 
 ```go
 package main
@@ -41,10 +56,10 @@ import (
     "context"
     "fmt"
     "log"
+    "os"
     
     "github.com/SadikSunbul/gopilot"
-    "github.com/SadikSunbul/gopilot/clients"
-    "github.com/SadikSunbul/gopilot/pkg/generator"
+    "github.com/SadikSunbul/gopilot/provider/gemini"
 )
 
 // Define your function parameters
@@ -60,7 +75,7 @@ type WeatherResponse struct {
 }
 
 // Implement your function logic
-func GetWeather(params WeatherParams) (WeatherResponse, error) {
+func GetWeather(ctx context.Context, params WeatherParams) (WeatherResponse, error) {
     if params.City == "" {
         return WeatherResponse{}, fmt.Errorf("city cannot be empty")
     }
@@ -74,52 +89,49 @@ func GetWeather(params WeatherParams) (WeatherResponse, error) {
 }
 
 func main() {
-    // Initialize Gemini client
-    client, err := clients.NewGeminiClient(context.Background(), "your-api-key", "gemini-2.0-flash")
+    // Initialize Gemini provider (requires GEMINI_API_KEY)
+    apiKey := os.Getenv("GEMINI_API_KEY")
+    client, err := gemini.NewClient(context.Background(), apiKey, gemini.WithModel("gemini-2.0-flash"))
     if err != nil {
         log.Fatal(err)
     }
     defer client.Close()
 
     // Create GoPilot instance
-    gp, err := gopilot.NewGopilot(client)
+    gp, err := gopilot.New(client)
     if err != nil {
         log.Fatal("failed to initialize gopilot:", err)
     }
 
     // Register your function
-    weatherFn := &gopilot.Function[WeatherParams, WeatherResponse]{
-        Name:        "weather-agent",
-        Description: "Gets weather information for a specified city",
-        Parameters:  generator.GenerateParameterSchema(WeatherParams{}),
-        Execute:     GetWeather,
-    }
+    weatherFn := gopilot.NewFunction[WeatherParams, WeatherResponse](
+        "weather-agent",
+        "Gets weather information for a specified city",
+        GetWeather,
+    )
     
-    if err := gp.FunctionRegister(weatherFn); err != nil {
+    if err := gp.Register(weatherFn); err != nil {
         log.Fatal(err)
     }
-
-    // Set system prompt (required)
-    gp.SetSystemPrompt(nil)
 
     // Process user query
     input := "What's the weather like in Istanbul?"
     
-    // Option 1: Generate and Execute separately
-    response, err := gp.Generate(input)
+    // Generate and Execute separately
+    response, err := gp.Generate(context.Background(), input)
     if err != nil {
         log.Fatal(err)
     }
     
-    result, err := gp.FunctionExecute(response.Agent, response.Parameters)
+    result, err := gp.Execute(context.Background(), response.Agent, response.Parameters)
     if err != nil {
         log.Fatal(err)
     }
     
     fmt.Printf("Result: %+v\n", result)
 
-    // Option 2: Generate and Execute in one step
-    result, err = gp.GenerateAndExecute(input)
+    // Or: Generate and Execute in one step
+    result, err = gp.GenerateAndExecute(context.Background(), input)
     if err != nil {
         log.Fatal(err)
     }
@@ -159,12 +171,11 @@ func Translate(params TranslateParams) (TranslateResponse, error) {
 }
 
 // Register the translation function
-translateFn := &gopilot.Function[TranslateParams, TranslateResponse]{
-    Name:        "translate-agent",
-    Description: "Translates text between languages",
-    Parameters:  generator.GenerateParameterSchema(TranslateParams{}),
-    Execute:     Translate,
-}
+translateFn := gopilot.NewFunction[TranslateParams, TranslateResponse](
+    "translate-agent",
+    "Translates text between languages",
+    Translate,
+)
 ```
 
 ### Interactive CLI Example
@@ -187,7 +198,7 @@ for {
         break
     }
 
-    result, err := gp.GenerateAndExecute(input)
+    result, err := gp.GenerateAndExecute(context.Background(), input)
     if err != nil {
         log.Printf("Error: %v\n", err)
         continue
@@ -221,7 +232,7 @@ for {
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+Issues and pull requests are welcome. For small changes, feel free to open a PR directly; for larger changes, please start with an issue to discuss the approach first.
 
 ## Security
 
