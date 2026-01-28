@@ -59,7 +59,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("failed to close gemini client: %v", err)
+		}
+	}()
 
 	gp, err := gopilot.New(client, gopilot.WithStdLogger(gopilot.LogLevelInfo))
 	if err != nil {

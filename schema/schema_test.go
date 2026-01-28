@@ -5,20 +5,20 @@ import (
 )
 
 type simpleStruct struct {
-	Name    string `json:"name" description:"The name" required:"true"`
-	Age     int    `json:"age" description:"The age"`
-	Active  bool   `json:"active"`
-	Score   float64 `json:"score"`
+	Name   string  `json:"name" description:"The name" required:"true"`
+	Age    int     `json:"age" description:"The age"`
+	Active bool    `json:"active"`
+	Score  float64 `json:"score"`
 }
 
 type nestedStruct struct {
-	User    simpleStruct `json:"user" description:"User info"`
-	Tags    []string     `json:"tags" description:"Tags"`
+	User simpleStruct `json:"user" description:"User info"`
+	Tags []string     `json:"tags" description:"Tags"`
 }
 
 type complexStruct struct {
-	ID      string       `json:"id" required:"true"`
-	Data    nestedStruct `json:"data"`
+	ID      string        `json:"id" required:"true"`
+	Data    nestedStruct  `json:"data"`
 	Options *simpleStruct `json:"options"`
 }
 
@@ -198,8 +198,12 @@ func TestGenerateSchema_WithTags(t *testing.T) {
 func TestGenerateSchema_UnexportedFields(t *testing.T) {
 	type structWithUnexported struct {
 		Public  string `json:"public"`
-		private string `json:"private"` // unexported
+		private string // unexported (intentionally ignored)
 	}
+
+	// Validate that unexported fields are ignored by GenerateSchema.
+	// Keep the field referenced to avoid linters that flag unused fields.
+	_ = structWithUnexported{}.private
 
 	schema := GenerateSchema(structWithUnexported{})
 
